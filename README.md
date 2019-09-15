@@ -38,4 +38,9 @@ For example, the included `64x64_clean_square2_mask`:
 
 ![Clean Square2 Mask](https://i.imgur.com/NgTASEa.png)
 
-Mask suggestions (Pull Requests) are obviously encouranged.
+Mask suggestions (pull requests) are obviously encouranged.
+
+# Acknowledgments
+
+  - **suicidalkatt** for the [initial idea / icon packages](https://www.wowinterface.com/downloads/info17774-CleanIcons-Square.html)
+  - **Dandelion** for the [BLPConverter](https://www.wowinterface.com/downloads/info14110-BLPConverter.html)
