@@ -1,0 +1,14 @@
+Sword_2H_EbonBlade_B_01*
+Cape_Draenor*
+Shield_DraenorRaid*
+Sword_1H_Artifact*
+Pet_Type*
+Thrown_1H_Harpoon_D_01*
+THROWN_1H_HARPOON_D_01*
+THUMB*
+INV_LegionCircle*
+INV_TalanjisExpedition* INV_TortollanSeekers* INV_Voldunai* INV_ZandalariEmpire* INV_ChampionsofAzeroth* INV_HordeWarEffort* INV_OrderofEmbers* INV_ProudmooreAdmirality* INV_StormsWake* INV_AllianceWarEffort*
+INV_Faction_*Round*
+UI_*Icon-round*
+Tracking_*
+Organic_reflect01*

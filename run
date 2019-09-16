@@ -1,0 +1,180 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+tred=$(tput setaf 1); tgreen=$(tput setaf 2); tyellow=$(tput setaf 3); tblue=$(tput setaf 4); tmagenta=$(tput setaf 5); tcyan=$(tput setaf 6); treset=$(tput sgr0); twbg=$(tput setab 7); tclr=$(tput el) 
+
+# TODO: Separate the user-editable vars from the rest of the logic
+# Defining customizable variables
+
+# directory of where the BLP files are exported, CASE SENSITIVE
+asset_dir="/mnt/g/World of Warcraft/_retail_/BlizzardInterfaceArt/Interface/ICONS"
+
+# binary and flags used to convert between the image formats
+png_converter="${DIR}/tools/BLPConverter.exe"
+png_converter_flags="/R"
+blp_converter="${DIR}/tools/BLPConverter.exe"
+blp_converter_flags="/R"
+
+# temporary work directory
+temp_dir="temp"
+
+# where to output final icons
+output_dir="output"
+
+# mask to use for the final icons
+use_mask="${DIR}/masks/64x64_clean_square2_mask.png"
+
+# read the list of ignored files
+readarray -t ignored_files < "${DIR}/ignored_files.txt"
+
+# TODO: Read this from an external file
+# somehow there are some icons which have made it into the game at higher resolution than 64x64
+needs_resize="Achievement_Boss_Galakras.png Achievement_General_ClassicBattles.png Achievement_Leader_GennGraymane.png INV_axe_1h_6miningpick.png Spell_Holy_HopeAndGrace.png Creatureportrait_BE_ScryingOrb_Epic.png TalentSpec_Druid_Feral_Bear.png TalentSpec_Druid_Feral_Cat.png TalentSpec_Druid_Restoration.png"
+
+# functions
+function echo_red { echo "${tred}$1${treset}"; }
+function echo_green { echo "${tgreen}$1${treset}"; }
+
+sp="▌▀▐▄"
+sc=0
+spin() {
+   printf "\r${sp:sc++:1} ${1}${tclr}"
+   ((sc==${#sp})) && sc=0
+}
+endspin() {
+   printf "\r%s\n" "$@"
+}
+
+function do_checkup {
+  echo "Checking paths..."
+  cd "$DIR" || exit 1
+
+  echo -n "Asset Directory ${asset_dir}: "
+
+  if [[ -d "$asset_dir" ]] && [[ -w "$asset_dir" ]] && [[ -x "$asset_dir" ]]; then
+    echo_green "OK!"
+  else 
+    echo_red "asset directory is not writeable. Wrong path?"
+    exit 1
+  fi
+
+  echo -n "PNG Converter ${png_converter}: "
+  if [[ -x "$png_converter" ]]; then
+    echo_green "OK!"
+  else
+    echo_red "converter not executable. Wrong path?"
+    exit 1
+  fi
+
+  echo -n "BLP Converter ${blp_converter}: "
+  if [[ -x "$blp_converter" ]]; then
+    echo_green "OK!"
+  else
+    echo_red "converter not executable. Wrong path?"
+    exit 1
+  fi
+
+  echo -n "Temporary directory ${temp_dir}: "
+  mkdir "$temp_dir" 2 > /dev/null
+  if [[ -w "$temp_dir" ]]; then
+    echo_green "OK!"
+  else
+    echo_red "directory not writeable"
+		exit 1
+  fi
+
+	echo -n "Output directory ${temp_dir}: "
+	mkdir "$output_dir" 2 > /dev/null
+	if [[ -w "$output_dir" ]]; then
+		echo_green "OK!"
+	else
+		echo_red "directory not writeable"
+		exit 1
+	fi
+
+  echo -n "Checking for ImageMagick: "
+  command -v convert > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+    echo_green "OK!"
+  else 
+    echo_red "convert not found. Please install ImageMagick"
+    exit 1
+  fi
+
+  echo -n "Checking for icon mask ${icon_mask}: "
+  if [[ -r "$use_mask" ]]; then
+    echo_green "OK!"
+  else
+    echo_red "mask not found. Wrong path?"
+    exit 1
+  fi
+
+}
+
+function convert_blp_to_png {
+  # we change dir to the asset directory because BLPconverter.exe doesn't handle absolute paths under WSL properly
+  cd "$asset_dir" || exit 1
+  mkdir "png"
+
+  for file in *.[Bb][Ll][Pp]; do
+
+    filename="${file##*/}"
+    filename="${filename%.*}"
+
+    if [[ -r "png/${filename}.png" ]]; then
+      echo "tmp/${filename}.png exists, ${tyellow}skipping${treset}"
+      continue
+    fi
+    
+    for pattern in "${ignored_files[@]}"; do
+      [[ $file == $pattern ]] && continue 2
+    done 
+    
+    "$png_converter" "$png_converter_flags" "$file" "png/${filename}.png"
+
+  done
+
+  cd "$DIR" || exit 1
+}
+
+function apply_mask_to_icons {
+  cd "$DIR" || exit 1
+
+  filecount=("${asset_dir}/png/"*.png)
+  count=0
+  for file in "${asset_dir}/png/"*.png; do
+    filename="${file##*/}"
+
+    count=$((count+1))
+		spin "Applying mask ${count}/${#filecount[@]}: ${filename}"
+
+    convert "$file" "$use_mask" -composite "${temp_dir}/${filename}"
+  done
+
+  count=0
+  for file in $needs_resize; do
+    count=$((count+1))
+
+    spin "Resizing ${count}/${#needs_resize[@]}: ${file}"
+
+    convert "${asset_dir}/png/${file}" -resize 64x64 "$use_mask" -composite "${temp_dir}/{$file}"
+  done
+	endspin
+}
+
+
+function convert_png_to_blp {
+  cd "$DIR" || exit 1
+  
+  for file in "${temp_dir}"/*.png; do
+    filename="${file##*/}"
+    filename="${filename%.*}"
+  
+    "$blp_converter" "$blp_converter_flags" "$file" "${output_dir}/${filename}.blp"
+  done
+}
+
+do_checkup
+convert_blp_to_png
+apply_mask_to_icons
+convert_png_to_blp
