@@ -13,7 +13,7 @@ asset_dir="/mnt/g/World of Warcraft/_retail_/BlizzardInterfaceArt/Interface/ICON
 png_converter="${DIR}/tools/BLPConverter.exe"
 png_converter_flags="/R"
 blp_converter="${DIR}/tools/BLPConverter.exe"
-blp_converter_flags="/R"
+blp_converter_flags="/UPNG_RGBA=BLP_DXT1_A0"
 
 # temporary work directory
 temp_dir="temp"
@@ -29,11 +29,11 @@ readarray -t ignored_files < "${DIR}/ignored_files.txt"
 
 # TODO: Read this from an external file
 # somehow there are some icons which have made it into the game at higher resolution than 64x64
-needs_resize="Achievement_Boss_Galakras.png Achievement_General_ClassicBattles.png Achievement_Leader_GennGraymane.png INV_axe_1h_6miningpick.png Spell_Holy_HopeAndGrace.png Creatureportrait_BE_ScryingOrb_Epic.png TalentSpec_Druid_Feral_Bear.png TalentSpec_Druid_Feral_Cat.png TalentSpec_Druid_Restoration.png"
+needs_resize=(Achievement_Boss_Galakras.png Achievement_General_ClassicBattles.png Achievement_Leader_GennGraymane.png INV_axe_1h_6miningpick.png Spell_Holy_HopeAndGrace.png Creatureportrait_BE_ScryingOrb_Epic.png TalentSpec_Druid_Feral_Bear.png TalentSpec_Druid_Feral_Cat.png TalentSpec_Druid_Restoration.png)
 
 # functions
-function echo_red { echo "${tred}$1${treset}"; }
-function echo_green { echo "${tgreen}$1${treset}"; }
+echo_red () { echo "${tred}$1${treset}"; }
+echo_green () { echo "${tgreen}$1${treset}"; }
 
 sp="▌▀▐▄"
 sc=0
@@ -45,7 +45,7 @@ endspin() {
    printf "\r%s\n" "$@"
 }
 
-function do_checkup {
+do_checkup () {
   echo "Checking paths..."
   cd "$DIR" || exit 1
 
@@ -75,22 +75,22 @@ function do_checkup {
   fi
 
   echo -n "Temporary directory ${temp_dir}: "
-  mkdir "$temp_dir" 2 > /dev/null
+  mkdir "$temp_dir" &>/dev/null
   if [[ -w "$temp_dir" ]]; then
     echo_green "OK!"
   else
     echo_red "directory not writeable"
-		exit 1
+    exit 1
   fi
 
-	echo -n "Output directory ${temp_dir}: "
-	mkdir "$output_dir" 2 > /dev/null
-	if [[ -w "$output_dir" ]]; then
-		echo_green "OK!"
-	else
-		echo_red "directory not writeable"
-		exit 1
-	fi
+  echo -n "Output directory ${temp_dir}: "
+  mkdir "$output_dir" &>/dev/null
+  if [[ -w "$output_dir" ]]; then
+    echo_green "OK!"
+  else
+    echo_red "directory not writeable"
+    exit 1
+  fi
 
   echo -n "Checking for ImageMagick: "
   command -v convert > /dev/null 2>&1
@@ -111,12 +111,14 @@ function do_checkup {
 
 }
 
-function convert_blp_to_png {
+convert_blp_to_png () {
   # we change dir to the asset directory because BLPconverter.exe doesn't handle absolute paths under WSL properly
   cd "$asset_dir" || exit 1
   mkdir "png"
-
+  
+  N=16
   for file in *.[Bb][Ll][Pp]; do
+    while (( $(jobs -p | wc -l) >= N )); do wait -n; done
 
     filename="${file##*/}"
     filename="${filename%.*}"
@@ -129,52 +131,66 @@ function convert_blp_to_png {
     for pattern in "${ignored_files[@]}"; do
       [[ $file == $pattern ]] && continue 2
     done 
-    
-    "$png_converter" "$png_converter_flags" "$file" "png/${filename}.png"
 
-  done
+    ( "$png_converter" "$png_converter_flags" "$file" "png/${filename}.png" ) & done
+  wait
 
   cd "$DIR" || exit 1
 }
 
-function apply_mask_to_icons {
+apply_mask_to_icons () {
   cd "$DIR" || exit 1
+
+  format="png"
+  convert_output="$temp_dir"
+
+  if [[ $1 == [Tt][Gg][Aa] ]]; then
+    format="tga"
+    convert_output="$output_dir"
+  fi
 
   filecount=("${asset_dir}/png/"*.png)
   count=0
+  N=16
   for file in "${asset_dir}/png/"*.png; do
+    while (( $(jobs -p | wc -l) >= N )); do wait -n; done
+
     filename="${file##*/}"
+    filename="${filename%.*}.${format}"
 
     count=$((count+1))
-		spin "Applying mask ${count}/${#filecount[@]}: ${filename}"
-
-    convert "$file" "$use_mask" -composite "${temp_dir}/${filename}"
-  done
+    spin "Applying mask ${count}/${#filecount[@]}: ${filename}"
+    ( convert "$file" "$use_mask" -composite "${convert_output}/${filename}" ) & done
+  wait 
 
   count=0
-  for file in $needs_resize; do
+  for file in "${needs_resize[@]}"; do
+    while (( $(jobs -p | wc -l) >= N )); do wait -n; done
     count=$((count+1))
+    filename="${file##*/}"
+    filename="${filename%.*}.${format}"
 
-    spin "Resizing ${count}/${#needs_resize[@]}: ${file}"
-
-    convert "${asset_dir}/png/${file}" -resize 64x64 "$use_mask" -composite "${temp_dir}/{$file}"
-  done
-	endspin
+    spin "Resizing ${count}/${#needs_resize[@]}: ${filename}"
+    ( convert "${asset_dir}/png/${file}" -resize 64x64 "$use_mask" -composite "${convert_output}/{$filename}" ) & done
+  wait
+  endspin
 }
 
 
-function convert_png_to_blp {
+convert_png_to_blp () {
   cd "$DIR" || exit 1
   
+  N=16
   for file in "${temp_dir}"/*.png; do
+    while (( $(jobs -p | wc -l) >= N )); do wait -n; done
     filename="${file##*/}"
     filename="${filename%.*}"
-  
-    "$blp_converter" "$blp_converter_flags" "$file" "${output_dir}/${filename}.blp"
-  done
+    
+    ( "$blp_converter" "$blp_converter_flags" "$file" "${output_dir}/${filename}.blp") & done
+  wait
 }
 
 do_checkup
 convert_blp_to_png
-apply_mask_to_icons
+apply_mask_to_icons 
 convert_png_to_blp

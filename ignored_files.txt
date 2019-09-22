@@ -12,3 +12,6 @@ INV_Faction_*Round*
 UI_*Icon-round*
 Tracking_*
 Organic_reflect01*
+6IH_*
+6OR_*
+UI_RankedPvP*
