@@ -7,7 +7,7 @@ tred=$(tput setaf 1); tgreen=$(tput setaf 2); tyellow=$(tput setaf 3); tblue=$(t
 # Defining customizable variables
 
 # directory of where the BLP files are exported, CASE SENSITIVE
-asset_dir="/mnt/g/World of Warcraft/_retail_/BlizzardInterfaceArt/Interface/ICONS"
+asset_dir="/mnt/g/World of Warcraft/_ptr_/BlizzardInterfaceArt/Interface/ICONS"
 
 # binary and flags used to convert between the image formats
 png_converter="${DIR}/tools/BLPConverter.exe"
@@ -118,7 +118,6 @@ convert_blp_to_png () {
   
   N=16
   for file in *.[Bb][Ll][Pp]; do
-    while (( $(jobs -p | wc -l) >= N )); do wait -n; done
 
     filename="${file##*/}"
     filename="${filename%.*}"
@@ -130,8 +129,9 @@ convert_blp_to_png () {
     
     for pattern in "${ignored_files[@]}"; do
       [[ $file == $pattern ]] && continue 2
-    done 
+    done
 
+    while (( $(jobs -p | wc -l) >= N )); do wait -n; done
     ( "$png_converter" "$png_converter_flags" "$file" "png/${filename}.png" ) & done
   wait
 
